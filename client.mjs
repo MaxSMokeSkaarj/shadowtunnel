@@ -1,36 +1,41 @@
+import net from 'net';
+import fs from 'fs';
 import { Client } from './crypto.mjs';
-import fs from 'node:fs';
 
-const PORT = 3000;
-const HOST = '127.0.0.1';
+const SERVER_PUBLIC_KEY = fs.readFileSync('server_identity.pub');
 const PASSWORD = 'super-secret-password';
+const SERVER_HOST = '127.0.0.1';
+const SERVER_PORT = 3000;
+const LOCAL_PROXY_PORT = 8080;
 
-const serverPublicKey = fs.readFileSync('server_identity.pub', 'utf8');
+const localServer = net.createServer((localSocket) => {
+  console.log('New local proxy connection');
 
-const client = new Client({
-    serverPublicKey: serverPublicKey,
+  const tunnelSocket = net.connect(SERVER_PORT, SERVER_HOST);
+
+  const clientSession = new Client(tunnelSocket, {
+    serverPublicKey: SERVER_PUBLIC_KEY,
     password: PASSWORD
+  });
+
+  clientSession.on('secure', () => {
+    console.log('Tunnel secure, forwarding...');
+    localSocket.pipe(clientSession);
+    clientSession.pipe(localSocket);
+  });
+
+  const cleanup = () => {
+    localSocket.destroy();
+    tunnelSocket.destroy();
+  };
+
+  clientSession.on('error', cleanup);
+  localSocket.on('error', cleanup);
+  tunnelSocket.on('error', cleanup);
+  localSocket.on('close', cleanup);
 });
 
-client.on('secure', () => {
-    console.log('Соединение защищено, авторизация пройдена!');
-    
-    setInterval(() => {
-        const msg = `Привет, сейчас ${new Date().toLocaleTimeString()}`;
-        console.log(`[Client] Отправляю: ${msg}`);
-        client.write(Buffer.from(msg));
-    }, 2000);
+localServer.listen(LOCAL_PROXY_PORT, () => {
+  console.log(`Local HTTP proxy listening on ${LOCAL_PROXY_PORT}`);
+  console.log('Configure your browser/system to use HTTP proxy 127.0.0.1:' + LOCAL_PROXY_PORT);
 });
-
-client.on('data', (data) => {
-    console.log(`[Client] Ответ от сервера: ${data.toString()}`);
-});
-
-client.on('error', (err) => console.error('[Client] Ошибка:', err.message));
-client.on('close', () => {
-    console.log('[Client] Соединение закрыто');
-    process.exit();
-});
-
-console.log(`🔗 Подключаюсь к ${HOST}:${PORT}...`);
-client.connect(PORT, HOST);
