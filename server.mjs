@@ -82,7 +82,7 @@ const server = net.createServer((socket) => {
   });
 
 
-  shadowServer.on('connection', (secureSession) => {
+  serverSession.on('connection', (secureSession) => {
     console.log('Secure tunnel established');
     handleProxyConnection(secureSession);
   });
