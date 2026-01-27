@@ -9,30 +9,31 @@ const SERVER_PORT = 3000;
 const LOCAL_PROXY_PORT = 8080;
 
 const localServer = net.createServer((localSocket) => {
-  console.log('New local proxy connection');
+    console.log('New local proxy connection');
 
-  const tunnelSocket = net.connect(SERVER_PORT, SERVER_HOST);
+    const clientSession = new Client({
+        serverPublicKey: SERVER_PUBLIC_KEY,
+        password: PASSWORD
+    });
 
-  const clientSession = new Client(tunnelSocket, {
-    serverPublicKey: SERVER_PUBLIC_KEY,
-    password: PASSWORD
-  });
+    clientSession.on('secure', () => {
+        console.log('Tunnel secure, forwarding...');
+        localSocket.pipe(clientSession);
+        clientSession.pipe(localSocket);
+    });
 
-  clientSession.on('secure', () => {
-    console.log('Tunnel secure, forwarding...');
-    localSocket.pipe(clientSession);
-    clientSession.pipe(localSocket);
-  });
+    clientSession.connect(SERVER_PORT, SERVER_HOST);
 
-  const cleanup = () => {
-    localSocket.destroy();
-    tunnelSocket.destroy();
-  };
+    const cleanup = () => {
+        localSocket.destroy();
+        clientSession.socket.destroy(); 
+    };
 
-  clientSession.on('error', cleanup);
-  localSocket.on('error', cleanup);
-  tunnelSocket.on('error', cleanup);
-  localSocket.on('close', cleanup);
+    clientSession.on('error', (err) => {
+        console.error('Tunnel error:', err.message);
+        cleanup();
+    });
+    localSocket.on('error', cleanup);
 });
 
 localServer.listen(LOCAL_PROXY_PORT, () => {
