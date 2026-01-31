@@ -1,11 +1,10 @@
 import { Server } from "./crypto.mjs";
 
-const server = new Server(8080, (connection) => {
+const server = new Server(connection => {
   connection.on('data', (data) => {
-    for (const con of server.connections) {
-      if (con === connection) continue;
-      con.write(data);
-    };
+    console.log(server.connections.size);
+    connection.write(data);
   });
 });
 
+server.listen(8080);
