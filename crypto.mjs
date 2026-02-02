@@ -1,5 +1,6 @@
-import net from "node:net";
-
+import { Socket, Server, createServer, createConnection} from "node:net";
+import { Duplex } from "node:stream";
+import { hkdfSync, diffieHellman, generateKeyPairSync, verify, sign, createDecipheriv, createCipheriv, randomBytes } from "node:crypto";
 /**
  * A simple TCP server that handles multiple connections.
  * @class Server
@@ -8,16 +9,58 @@ export class Server {
 
   /**
    * Set of active connections.
-   * @type {Set<net.Socket>}
+   * @type {Set<Socket>}
    */
   connections = new Set();
   
   /**
-   * The TCP server instance.
-   * @type {net.Server}
-   * @param {function(net.Socket): void} onConnection - Callback for new connections.
+   * The endpoint stream.
+   * @type {Duplex}
    */
-  server = net.createServer((socket) => {
+  endpoint = new Duplex({
+    read(size) {
+      // No-op
+    },
+    write(chunk, encoding, callback) {
+      // No-op
+      callback();
+    }
+  });
+
+  /**
+   * The encryption stream.
+   * @type {Duplex}
+   */
+  encryptStream = new Duplex({
+    read(size) {
+      // No-op
+    },
+    write(chunk, encoding, callback) {
+      // No-op
+      callback();
+    }
+  });
+
+  /**
+   * The decryption stream.
+   * @type {Duplex}
+   */
+  decryptStream = new Duplex({
+    read(size) {
+      // No-op
+    },
+    write(chunk, encoding, callback) {
+      // No-op
+      callback();
+    }
+  });
+
+  /**
+   * The TCP server instance.
+   * @type {Server}
+   * @param {function(Socket): void} onConnection - Callback for new connections.
+   */
+  server = createServer((socket) => {
     
     console.log(`New connection established from ${socket.remoteAddress}:${socket.remotePort}`);
     
@@ -39,9 +82,8 @@ export class Server {
   /**
    * Creates a Server instance.
    * @constructor
-   * @param {function(net.Socket): void} onConnection - Callback for new connections.
+   * @param {function(Socket): void} onConnection - Callback for new connections.
    */
-
   constructor(onConnection) {
     this.onConnection = onConnection;
   };  
@@ -69,7 +111,7 @@ export class Client {
    * @param {string} host 
    */
   constructor(port, host) {
-    this.connection = net.createConnection(port, host, () => {
+    this.connection = createConnection(port, host, () => {
       console.log("Connected to server");
     });
   }
